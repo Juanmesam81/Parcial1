@@ -1,0 +1,14 @@
+A: Se solicita un algoritmo capaz de detectar que tipo de señal se vería, la frecuencia y la amplitud, partiendo de los valores recibidos por medio de la entrada analógica, todo 
+esto proveniente de un generador de señales. Aparte de hacer las conexiones necesarias del Arduino el LCD, generador de señales y dos pulsadores, debemos implementar el código 
+de c++ con el que venimos experimentando para que funcione en Arduino.
+La solución propuesta primero montar todo lo necesario en tinkercad, que son conectar el LCD, generador de señales y comprobar que ambos pulsadores cumplen su respectiva función 
+de apagar/prender el generador de señales y mostrar datos en el LCD. Una vez listo el sistema en tinkercad empezar a experimentar con el generador de señales para poder observar 
+que patrón de comportamiento tiene frente a diferentes valores dados previamente. Frente al análisis de los patrones de comportamiento empezar a mirar como se relacionan 
+matematicamente los máximos y mínimos con la amplitud, cuántos valores se reciben en cierto lapso de tiempo y saber si siempre es un valor constante, en base a si el # de valores 
+recibidos en cierto lapso de tiempo es constante podemos calcular la frecuencia viendo cuanto tarda en llegar a su pico máximo, luego de hallar frecuencia y magnitud experimentar 
+con que valores la señal es irreconocible (patrón fuera de los propuestos en el problema) para plantear los límites de reconocimiento, por último buscar una relacion con los 
+maximos, mínimos y valores capturados en el arreglo con la forma de la señal
+
+B: Esquema. 
+Crear una función para hallar los diferentes valores que necesitamos. Una función para hallar el maximo y el mínimo dado un arreglo con valores capturados en un pequeño lapso de 
+tiempo, una función para hallar la amplitud dados máximo y mínimo, una función para hallar la frecuencia dado el arreglo con los valores en cierto lapso de tiempo.
