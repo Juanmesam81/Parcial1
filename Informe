@@ -4,11 +4,27 @@ de c++ con el que venimos experimentando para que funcione en Arduino.
 La solución propuesta primero montar todo lo necesario en tinkercad, que son conectar el LCD, generador de señales y comprobar que ambos pulsadores cumplen su respectiva función 
 de apagar/prender el generador de señales y mostrar datos en el LCD. Una vez listo el sistema en tinkercad empezar a experimentar con el generador de señales para poder observar 
 que patrón de comportamiento tiene frente a diferentes valores dados previamente. Frente al análisis de los patrones de comportamiento empezar a mirar como se relacionan 
-matematicamente los máximos y mínimos con la amplitud, cuántos valores se reciben en cierto lapso de tiempo y saber si siempre es un valor constante, en base a si el # de valores 
+matemáticamente los máximos y mínimos con la amplitud, cuántos valores se reciben en cierto lapso de tiempo y saber si siempre es un valor constante, en base a si el # de valores 
 recibidos en cierto lapso de tiempo es constante podemos calcular la frecuencia viendo cuanto tarda en llegar a su pico máximo, luego de hallar frecuencia y magnitud experimentar 
-con que valores la señal es irreconocible (patrón fuera de los propuestos en el problema) para plantear los límites de reconocimiento, por último buscar una relacion con los 
-maximos, mínimos y valores capturados en el arreglo con la forma de la señal
+con que valores la señal es irreconocible (patrón fuera de los propuestos en el problema) para plantear los límites de reconocimiento, por último buscar una relación con los 
+máximos, mínimos y valores capturados en el arreglo con la forma de la señal
 
-B: Esquema. 
-Crear una función para hallar los diferentes valores que necesitamos. Una función para hallar el maximo y el mínimo dado un arreglo con valores capturados en un pequeño lapso de 
-tiempo, una función para hallar la amplitud dados máximo y mínimo, una función para hallar la frecuencia dado el arreglo con los valores en cierto lapso de tiempo.
+
+B. Esquema:
+
+Crear una función para hallar los diferentes valores que necesitamos. 
+
+- Una función que reciba una variable tipo puntero que apunta hacia un arreglo en memoria dinámica, otra variable tipo entero que contiene la longitud a tomar(cuantos valores tomados en cierto lapso de tiempo a través del pin analógico del Arduino) y nos llene este arreglo dinámico con los valores tomados a través del pin analógico.
+- Una función para hallar el punto medio por así decir, que vendría siendo, según el desface de cc de la señal saber en que valor analógico se encuentra el punto medio. Esto nos ayudara para hallar la frecuencia.
+- Una función para calcular la amplitud dado un puntero hacia un arreglo en la memoria dinámica que contiene los valores capturados en cierto lapso de tiempo y la cantidad de valores capturados. Recorremos este arreglo buscando el máximo y el mínimo, una vez hallados, la amplitud seria igual a la diferencia de estos dos divido dos ((Valor máximo - valor mínimo)/2)
+- Una función para hallar la frecuencia.
+- Una función para saber que tipo de onda es.
+
+
+c. Algoritmos implementados: 
+void capturarValres(int* arregloSenal, int longitud){
+  for(int i = 0; i < longitud; i++){
+    arregloSenal[i] = analogRead(pinAnalogico);
+    delayMicroseconds(1000000 / frecuenciaMuestreo); // Tiempo de muestreo (en microsegundos)
+  }
+}
