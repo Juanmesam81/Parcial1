@@ -38,40 +38,47 @@ void setup()
 
 void loop()
 {
-  //Leer el estado del primer pulsador
+  // Leer el estado del primer pulsador
   estadoPulsador1 = digitalRead(pulsador1);
 
-  //Detectar si se presionó el primer pulsador (cambio de LOW a HIGH)
+  // Detectar si se presionó el primer pulsador (cambio de LOW a HIGH)
   if(estadoPulsador1 == HIGH && ultimoEstadoPulsador1 == LOW){
     lecturaActiva = !lecturaActiva;  // Alternar entre iniciar y detener la lectura
   }
 
-  //Si lecturaActiva es true, leer y mostrar los valores analógicos
+  // Si lecturaActiva es true, leer y mostrar los valores analógicos
   if(lecturaActiva == true){
     val = analogRead(analogPin);
     Serial.println(val);  // Mostrar el valor en el monitor serial
   }
 
-  //Leer el estado del segundo pulsador
+  // Leer el estado del segundo pulsador
   estadoPulsador2 = digitalRead(pulsador2);
 
-  //Si el segundo pulsador es presionado mientras la lectura está activa, imprimir en el LCD
+  // Si el segundo pulsador es presionado mientras la lectura está activa, imprimir en el LCD
   if(estadoPulsador2 == HIGH && lecturaActiva == true){
     // Asignar memoria dinámicamente para las muestras
     int *muestras = new int[cantidadMuestras];
     // Capturar las muestras de la señal
     Serial.println("Antes de la funcion");
     capturarValores(muestras, cantidadMuestras);
+    int *valorMinimo = new int;
+    int *valorMaximo = new int;
+    float valorMedio = calcularValorMedio(muestras,    cantidadMuestras, valorMinimo, valorMaximo);
+    Serial.print("Valor medio es: ");
+    Serial.println(valorMedio);
+    float voltaje = calcularAmplitud(valorMedio, valorMaximo);
     
-    lcd.print("Am = 6Hz Fr = 6v");      // Imprimir mensaje en la primera línea, de momento solo valores de ensayo
+    
+    lcd.print("Am = 6Hz Fr = 6v");      // Imprimir mensaje en la primera línea
     lcd.setCursor(0, 1);                // Mover el cursor a la segunda línea
     lcd.print("Onda: ");                // Imprimir el mensaje en la segunda línea
     delete[] muestras;
     delay(5000);                        // Mantener el mensaje durante 5 segundos
-    lcd.clear();                        // Limpiar el LCD
+    lcd.clear();                        // Limpiar el LCD después de los 5 segundos
   }
 
-  //Actualizar el último estado del primer pulsador para la siguiente iteración
+  // Actualizar el último estado del primer pulsador para la siguiente iteración
   ultimoEstadoPulsador1 = estadoPulsador1;
 }
 
@@ -84,8 +91,37 @@ void capturarValores(int *arreglo, int longitud){
   Serial.println("Termina en la funcion");
 }
 
+float calcularValorMedio(int *arreglo, int longitud, int *valorMinimo, int *valorMaximo){
+  float valorMedio = 0;
+  *valorMaximo = arreglo[0];
+  *valorMinimo = arreglo[0];
+  for(int i = 1; i < longitud; i++){
+    if(arreglo[i] > *valorMaximo){
+      *valorMaximo = arreglo[i];
+    }
+    if(arreglo[i] < *valorMinimo){
+      *valorMinimo = arreglo[i];
+    }
+  }
+  valorMedio = (*valorMaximo + *valorMinimo) / 2.0;
+  return valorMedio;
+}
+
+float calcularAmplitud(float valorMedio, int *valorMaximo){
+	float valorAmplitud = (*valorMaximo - valorMedio)*2;
+  	Serial.print("Amplitud pico a pico = ");
+  	Serial.println(valorAmplitud);
+  	float voltaje = (valorAmplitud/1023)*5.1;
+  	Serial.print("Amplitud pico a pico en Voltaje = ");
+  	Serial.print(voltaje);
+  	Serial.println("V");
+	return voltaje;
+}
+
 D. Problemas de desarrollo afrontados: 
 
 El primer inconveniente al comenzar con la elaboración del proyecto fue el como configurar los pulsadores y que el generador de funciones enviara valores continuamente a través del pin analógico, ya que estos al ser presionados toman un valor de 1 solo por un pequeño instante, luego vuelven a 0, por lo cual tuve que implementar un booleano y una variable donde guardar el último estado del botón para que funcionará
 
 El segundo inconveniente fue que el programa no terminaba su ejecución al invocar la función donde iba a almacenar todos los valores leídos desde el pin analógico en un arreglo ubicado en la memoria dinámica pero se soluciono disminuyendo el tamaño del arreglo, aunque al estar trabajando directamente sobre tinkercad no sabia como depurar por lo cual me tarde un poco en saber que era por falta de memoria que no podía utilizar un arreglo de tamaño 1000.
+
+El tercer inconveniente fue que a la hora de calcular la amplitud, cuando tenia que cambiarla a voltios, si era mayor a 6V ya no era tan efectiva la formula utilizada y entre mayor el valor a 6V mas se aleja la aproximación, para valores menores a 6V funciona muy bien.
