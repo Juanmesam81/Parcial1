@@ -125,3 +125,15 @@ El primer inconveniente al comenzar con la elaboración del proyecto fue el como
 El segundo inconveniente fue que el programa no terminaba su ejecución al invocar la función donde iba a almacenar todos los valores leídos desde el pin analógico en un arreglo ubicado en la memoria dinámica pero se soluciono disminuyendo el tamaño del arreglo, aunque al estar trabajando directamente sobre tinkercad no sabia como depurar por lo cual me tarde un poco en saber que era por falta de memoria que no podía utilizar un arreglo de tamaño 1000.
 
 El tercer inconveniente fue que a la hora de calcular la amplitud, cuando tenia que cambiarla a voltios, si era mayor a 6V ya no era tan efectiva la formula utilizada y entre mayor el valor a 6V mas se aleja la aproximación, para valores menores a 6V funciona muy bien.
+
+El cuarto inconveniente es que para calcular la frecuencia necesitábamos tener ciertas condiciones de control del tiempo, al menos conocer cuanto tiempo tarda el arreglo en llenarse y en base a eso hallar la frecuencia con una formula de tiempo
+
+E. Evolución de la solución: 
+
+1er Avance: Se implemento el modelo de Arduino con sus respectivas conexiones a un generador de señales, pantalla lcd y dos pulsadores. Falta configurar los pulsadores
+
+2do Avance: Se configuraron correctamente todos los componentes, ahora solo faltan las funciones respectivas para hallar los valores correspondientes.
+
+3er Avance: Se hizo la función que inicializa un puntero en memoria dinámica con un arreglo que contiene 500 valores tomados a través del pin analógico luego de ser pulsado el segundo pulsador
+
+4to Avance: Se hizo la función que calcula el punto medio de la señal por así decir, este valor nos servirá para hallar el valor de la amplitud pico y luego pasarla a voltaje, y también se avanzo en la función que calcula la amplitud y transforma a voltios
