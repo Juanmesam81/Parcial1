@@ -1,0 +1,7 @@
+https://www.tinkercad.com/things/hZZTuDsrtvJ-senales
+
+1er Avance: Se implemento el modelo de Arduino con sus respectivas conexiones a un generador de señales, pantalla lcd y dos pulsadores. Falta configurar los pulsadores
+
+2do Avance: Se configuraron correctamente todos los componentes, ahora solo faltan las funciones respectivas para hallar los valores correspondientes.
+
+3er Avance: Se hizo la función que inicializa un puntero en memoria dinámica con un arreglo que contiene 500 valores tomados a través del pin analógico luego de ser pulsado el segundo pulsador

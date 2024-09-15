@@ -1,13 +1,5 @@
-A: Se solicita un algoritmo capaz de detectar que tipo de señal se vería, la frecuencia y la amplitud, partiendo de los valores recibidos por medio de la entrada analógica, todo 
-esto proveniente de un generador de señales. Aparte de hacer las conexiones necesarias del Arduino el LCD, generador de señales y dos pulsadores, debemos implementar el código 
-de c++ con el que venimos experimentando para que funcione en Arduino.
-La solución propuesta primero montar todo lo necesario en tinkercad, que son conectar el LCD, generador de señales y comprobar que ambos pulsadores cumplen su respectiva función 
-de apagar/prender el generador de señales y mostrar datos en el LCD. Una vez listo el sistema en tinkercad empezar a experimentar con el generador de señales para poder observar 
-que patrón de comportamiento tiene frente a diferentes valores dados previamente. Frente al análisis de los patrones de comportamiento empezar a mirar como se relacionan 
-matemáticamente los máximos y mínimos con la amplitud, cuántos valores se reciben en cierto lapso de tiempo y saber si siempre es un valor constante, en base a si el # de valores 
-recibidos en cierto lapso de tiempo es constante podemos calcular la frecuencia viendo cuanto tarda en llegar a su pico máximo, luego de hallar frecuencia y magnitud experimentar 
-con que valores la señal es irreconocible (patrón fuera de los propuestos en el problema) para plantear los límites de reconocimiento, por último buscar una relación con los 
-máximos, mínimos y valores capturados en el arreglo con la forma de la señal
+A: Se solicita un algoritmo capaz de detectar que tipo de señal se vería, la frecuencia y la amplitud, partiendo de los valores recibidos por medio de la entrada analógica, todo esto proveniente de un generador de señales. Aparte de hacer las conexiones necesarias del Arduino el LCD, generador de señales y dos pulsadores, debemos implementar el código de c++ con el que venimos experimentando para que funcione en Arduino.
+La solución propuesta primero montar todo lo necesario en tinkercad, que son conectar el LCD, generador de señales y comprobar que ambos pulsadores cumplen su respectiva función de apagar/prender el generador de señales y mostrar datos en el LCD. Una vez listo el sistema en tinkercad empezar a experimentar con el generador de señales para poder observar que patrón de comportamiento tiene frente a diferentes valores dados previamente. Frente al análisis de los patrones de comportamiento empezar a mirar como se relacionan matemáticamente los máximos y mínimos con la amplitud, cuántos valores se reciben en cierto lapso de tiempo y saber si siempre es un valor constante, en base a si el # de valores recibidos en cierto lapso de tiempo es constante podemos calcular la frecuencia viendo cuanto tarda en llegar a su pico máximo, luego de hallar frecuencia y magnitud experimentar con que valores la señal es irreconocible (patrón fuera de los propuestos en el problema) para plantear los límites de reconocimiento, por último buscar una relación con los máximos, mínimos y valores capturados en el arreglo con la forma de la señal
 
 
 B. Esquema:
@@ -21,10 +13,79 @@ Crear una función para hallar los diferentes valores que necesitamos.
 - Una función para saber que tipo de onda es.
 
 
-c. Algoritmos implementados: 
-void capturarValres(int* arregloSenal, int longitud){
-  for(int i = 0; i < longitud; i++){
-    arregloSenal[i] = analogRead(pinAnalogico);
-    delayMicroseconds(1000000 / frecuenciaMuestreo); // Tiempo de muestreo (en microsegundos)
-  }
+C. Algoritmos implementados: 
+#include <LiquidCrystal.h>
+
+// Inicialización del LCD
+LiquidCrystal lcd(4, 5, 6, 7, 8, 9);
+const int analogPin = 0;   // Pin de entrada analógica
+const int cantidadMuestras = 500;
+const int pulsador1 = 2;    // Primer pulsador
+const int pulsador2 = 3;    // Segundo pulsador
+int estadoPulsador1 = 0;
+int estadoPulsador2 = 0;
+int ultimoEstadoPulsador1 = 0;
+bool lecturaActiva = false; // Estado de lectura (iniciar o detener)
+int val = 0;
+
+void setup()
+{
+  pinMode(pulsador1, INPUT);
+  pinMode(pulsador2, INPUT);
+  lcd.begin(16, 2);         // Inicialización del LCD con 16 columnas y 2 filas
+  Serial.begin(9600);       // Inicialización de la comunicación serial
 }
+
+void loop()
+{
+  //Leer el estado del primer pulsador
+  estadoPulsador1 = digitalRead(pulsador1);
+
+  //Detectar si se presionó el primer pulsador (cambio de LOW a HIGH)
+  if(estadoPulsador1 == HIGH && ultimoEstadoPulsador1 == LOW){
+    lecturaActiva = !lecturaActiva;  // Alternar entre iniciar y detener la lectura
+  }
+
+  //Si lecturaActiva es true, leer y mostrar los valores analógicos
+  if(lecturaActiva == true){
+    val = analogRead(analogPin);
+    Serial.println(val);  // Mostrar el valor en el monitor serial
+  }
+
+  //Leer el estado del segundo pulsador
+  estadoPulsador2 = digitalRead(pulsador2);
+
+  //Si el segundo pulsador es presionado mientras la lectura está activa, imprimir en el LCD
+  if(estadoPulsador2 == HIGH && lecturaActiva == true){
+    // Asignar memoria dinámicamente para las muestras
+    int *muestras = new int[cantidadMuestras];
+    // Capturar las muestras de la señal
+    Serial.println("Antes de la funcion");
+    capturarValores(muestras, cantidadMuestras);
+    
+    lcd.print("Am = 6Hz Fr = 6v");      // Imprimir mensaje en la primera línea, de momento solo valores de ensayo
+    lcd.setCursor(0, 1);                // Mover el cursor a la segunda línea
+    lcd.print("Onda: ");                // Imprimir el mensaje en la segunda línea
+    delete[] muestras;
+    delay(5000);                        // Mantener el mensaje durante 5 segundos
+    lcd.clear();                        // Limpiar el LCD
+  }
+
+  //Actualizar el último estado del primer pulsador para la siguiente iteración
+  ultimoEstadoPulsador1 = estadoPulsador1;
+}
+
+void capturarValores(int *arreglo, int longitud){
+  Serial.println("Entra en la funcion");
+  for(int i = 0; i < 500; i++){    
+    arreglo[i] = analogRead(analogPin);
+    Serial.println(arreglo[i]);
+  }
+  Serial.println("Termina en la funcion");
+}
+
+D. Problemas de desarrollo afrontados: 
+
+El primer inconveniente al comenzar con la elaboración del proyecto fue el como configurar los pulsadores y que el generador de funciones enviara valores continuamente a través del pin analógico, ya que estos al ser presionados toman un valor de 1 solo por un pequeño instante, luego vuelven a 0, por lo cual tuve que implementar un booleano y una variable donde guardar el último estado del botón para que funcionará
+
+El segundo inconveniente fue que el programa no terminaba su ejecución al invocar la función donde iba a almacenar todos los valores leídos desde el pin analógico en un arreglo ubicado en la memoria dinámica pero se soluciono disminuyendo el tamaño del arreglo, aunque al estar trabajando directamente sobre tinkercad no sabia como depurar por lo cual me tarde un poco en saber que era por falta de memoria que no podía utilizar un arreglo de tamaño 1000.
