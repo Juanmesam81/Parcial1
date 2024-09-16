@@ -16,6 +16,10 @@ el usuario presionara el segundo pulsador, para esto me toco devolverme a la fun
 la función micros() la cual funciona como un contabilizador en microsegundos, utilizando esta llegue al tiempo total que tomaba en llenar el arreglo, este tiempo
 total se divide por el numero de muestras para hallar el promedio que toma Arduino en almacenar cada valor en el arreglo. En base a estos valores hayamos la frecuencia
 con una formula encontrada.
+
+6to Avance: Se empezó la función de ver que tipo de onda es, la mas fácil era la cuadrada ya que solo tomaba 2 valores, la cosa se complica para hallar la senoidal
+y la triangular ya que ambas tienen valores muy similares pero investigando di que podía calcular la primera derivada y la segunda para ver que cambios habían,
+y así hallar un patrón, la derivada seria el cambio de un valor a otro, es decir crear 1 arreglo que me calcule primeraDerivada[0] = arreglo[1]−arreglo[0] asi sucesivamente, tambien aplica lo mismo para la segunda derivada solo que ya se aplica sobre la primera. Imprimiendo este patron en pantalla pude notar que en la segunda derivada cuando la señal es triangular el maximo del arreglo de la segundaDerivada es mayor a cuando la señal es senoidal (Esto con mismos atributos de frecuencia, amplitud y desface), aun me falta implementar los condicionales para eso y otra funcion para saber si la señal es desconocida.
 ​
 Algoritmo hasta el momento.
 
@@ -23,16 +27,16 @@ Incluyo la evolución del algoritmo ya que no se puede modificar el informe ya q
  
 #include <LiquidCrystal.h>
 
-// Inicialización del LCD
+//Inicialización del LCD
 LiquidCrystal lcd(4, 5, 6, 7, 8, 9);
-const int analogPin = 0;   // Pin de entrada analógica
+const int analogPin = 0;   //Pin de entrada analógica
 const int cantidadMuestras = 500;
-const int pulsador1 = 2;    // Primer pulsador
-const int pulsador2 = 3;    // Segundo pulsador
+const int pulsador1 = 2;    //Primer pulsador
+const int pulsador2 = 3;    //Segundo pulsador
 int estadoPulsador1 = 0;
 int estadoPulsador2 = 0;
 int ultimoEstadoPulsador1 = 0;
-bool lecturaActiva = false; // Estado de lectura (iniciar o detener)
+bool lecturaActiva = false; //Estado de lectura (iniciar o detener)
 int val = 0;
 
 void setup()
@@ -64,8 +68,10 @@ void loop()
 
   //Si el segundo pulsador es presionado mientras la lectura está activa, imprimir en el LCD
   if(estadoPulsador2 == HIGH && lecturaActiva == true){
-    //Asignar memoria dinámicamente para las muestras
+    //Asignar memoria dinámicamente para las muestras y la 1ra, 2da derivada que nos servirada para identificar el tipo de onda
     int *muestras = new int[cantidadMuestras];
+    int *primeraDerivada = new int[79];
+    int *segundaDerivada = new int[78];
     //Capturar las muestras de la señal
     unsigned long *intervaloMuestra = new unsigned long; //Puntero para almacenar el tiempo que toma entre cada valor
     capturarValores(muestras, cantidadMuestras, intervaloMuestra);
@@ -73,15 +79,25 @@ void loop()
     int *valorMaximo = new int;    
     //Se invocan las funciones que hallan la amplitud y la frecuencia
     float valorMedio = calcularValorMedio(muestras, cantidadMuestras, valorMinimo, valorMaximo);
-    float voltaje = calcularAmplitud(valorMedio, valorMaximo);
+    float amplitud = calcularAmplitud(valorMedio, valorMaximo);
     float frecuencia = calcularFrecuencia(muestras, cantidadMuestras, valorMedio, intervaloMuestra);
        
-    lcd.print("Am = 6Hz Fr = 6v");      //Imprimir mensaje en la primera línea
+    //Imprimir mensaje en la primera línea
+    lcd.print(frecuencia);
+    lcd.print("Hz ; ");
+    lcd.print(amplitud);
+    lcd.print("V");    
     lcd.setCursor(0, 1);                //Mover el cursor a la segunda línea
-    lcd.print("Onda: ");                //Imprimir el mensaje en la segunda línea
+    lcd.print("Onda: ");
+                    //Imprimir el mensaje en la segunda línea
+    calcularDerivadas(muestras, primeraDerivada, segundaDerivada);
+    int onda = identificarOnda(muestras, primeraDerivada, segundaDerivada, cantidadMuestras, valorMinimo, valorMaximo);
+    
     
     //Se libera el espacio en memoria dinamica ocupada por los punteros
     delete[] muestras;
+    delete[] primeraDerivada;
+    delete[] segundaDerivada;
     delete valorMinimo;
     delete valorMaximo;
     delete intervaloMuestra;
@@ -103,9 +119,6 @@ void capturarValores(int *arreglo, int longitud, unsigned long *intervaloMuestra
   unsigned long tiempoFin = micros();  //Almacenar el tiempo final
   unsigned long tiempoTotal = tiempoFin - tiempoInicio;
   *intervaloMuestra = tiempoTotal / longitud; 
-  Serial.print("El tiempo entre cada muestra es: ");
-  Serial.println(*intervaloMuestra);
-  Serial.println("Termina en la funcion");
 }
 
 float calcularValorMedio(int *arreglo, int longitud, int *valorMinimo, int *valorMaximo){
@@ -125,14 +138,9 @@ float calcularValorMedio(int *arreglo, int longitud, int *valorMinimo, int *valo
 }
 
 float calcularAmplitud(float valorMedio, int *valorMaximo){
-	float valorAmplitud = (*valorMaximo - valorMedio)*2;
-  	Serial.print("Amplitud pico a pico = ");
-  	Serial.println(valorAmplitud);
-  	float voltaje = (valorAmplitud/1023)*5.1;
-  	Serial.print("Amplitud pico a pico en Voltaje = ");
-  	Serial.print(voltaje);
-  	Serial.println("V");
-	return voltaje;
+  float valorAmplitud = (*valorMaximo - valorMedio)*2;
+  float voltaje = (valorAmplitud/1023)*5.1;
+  return voltaje;
 }
 
 float calcularFrecuencia(int *arreglo, int longitud, int valorMedio, unsigned long *intervaloMuestra){
@@ -140,13 +148,46 @@ float calcularFrecuencia(int *arreglo, int longitud, int valorMedio, unsigned lo
   float frecuencia = 0;
   unsigned long intervalo = *intervaloMuestra;
   for(int i = 1; i < longitud; i++){
-      if((arreglo[i-1] > valorMedio && arreglo[i] <= valorMedio) || (arreglo[i-1] < valorMedio && arreglo[i] >= valorMedio)){
+    if((arreglo[i-1] > valorMedio && arreglo[i] <= valorMedio) || (arreglo[i-1] < valorMedio && arreglo[i] >= valorMedio)){
           crucesValorMedio++;
       }
   }
   frecuencia = (crucesValorMedio) / ((2*((longitud)*(intervalo)))/1000000);
-  Serial.print("La frecuencia es: ");
-  Serial.print(frecuencia);
-  Serial.println("Hz");
   return frecuencia;
+}
+
+void calcularDerivadas(int *arreglo, int *primeraDerivada, int *segundaDerivada){    
+  for(int i = 1; i < 80; i++){
+    primeraDerivada[i-1] = arreglo[i] - arreglo[i-1];
+    Serial.print("[");
+    Serial.print(i);
+    Serial.print("] = ");
+    Serial.println(arreglo[i]);
+  }    
+  for(int i = 1; i < 79; i++){
+      segundaDerivada[i-1] = primeraDerivada[i] - primeraDerivada[i-1];
+  }
+}
+
+int identificarOnda(int *arreglo, int *primeraDerivada, int *segundaDerivada, int longitud, int *valorMinimo, int *valorMaximo){
+  int numerosDiferentes = 0;
+  for(int i = 0; i < 80; i++){
+    if(arreglo[i] != *valorMaximo && arreglo[i] != *valorMinimo){
+      numerosDiferentes++;
+    }
+    Serial.print("[");
+    Serial.print(i);
+    Serial.print("] = ");
+    Serial.print(primeraDerivada[i]);
+    Serial.print(" ; ");
+    Serial.println(segundaDerivada[i]);
+  }
+  if(numerosDiferentes == 0){
+  	Serial.println("Es cuadrada");
+    return 1;
+  }
+  
+  
+  
+  return 4;
 }
