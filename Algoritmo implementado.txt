@@ -1,0 +1,237 @@
+#include <LiquidCrystal.h>
+
+//Inicialización del LCD
+LiquidCrystal lcd(4, 5, 6, 7, 8, 9);
+const int analogPin = 0;   //Pin de entrada analógica
+const int cantidadMuestras = 500;
+const int pulsador1 = 2;    //Primer pulsador
+const int pulsador2 = 3;    //Segundo pulsador
+int estadoPulsador1 = 0;
+int estadoPulsador2 = 0;
+int ultimoEstadoPulsador1 = 0;
+bool lecturaActiva = false; //Estado de lectura (iniciar o detener)
+int val = 0;
+
+void setup()
+{
+  pinMode(pulsador1, INPUT); //Inicializacon de los pulsadores
+  pinMode(pulsador2, INPUT);
+  lcd.begin(16, 2);         //Inicialización del LCD con 16 columnas y 2 filas
+  Serial.begin(9600);       //Inicialización de la comunicación serial
+}
+
+void loop()
+{
+  //Leer el estado del primer pulsador
+  estadoPulsador1 = digitalRead(pulsador1);
+
+  //Detectar si se presionó el primer pulsador (cambio de LOW a HIGH)
+  if(estadoPulsador1 == HIGH && ultimoEstadoPulsador1 == LOW){
+    lecturaActiva = !lecturaActiva;  // Alternar entre iniciar y detener la lectura
+  }
+
+  //Si lecturaActiva es true, leer y mostrar los valores analógicos
+  if(lecturaActiva == true){
+    val = analogRead(analogPin);
+    Serial.println(val);  // Mostrar el valor en el monitor serial
+  }
+
+  //Leer el estado del segundo pulsador
+  estadoPulsador2 = digitalRead(pulsador2);
+
+  //Si el segundo pulsador es presionado mientras la lectura está activa, imprimir en el LCD
+  if(estadoPulsador2 == HIGH && lecturaActiva == true){
+    //Asignar memoria dinámicamente para las muestras y la 1ra, 2da derivada que nos servirada para identificar el tipo de onda
+    int *muestras = new int[cantidadMuestras];
+    int *primeraDerivada = new int[79];
+    int *segundaDerivada = new int[78];
+    //Capturar las muestras de la señal
+    unsigned long *intervaloMuestra = new unsigned long; //Puntero para almacenar el tiempo que toma entre cada valor
+    capturarValores(muestras, cantidadMuestras, intervaloMuestra);
+    int *valorMinimo = new int; //Punteros para almacenar minimo y maximo que seran hallados dentro de la función
+    int *valorMaximo = new int;    
+    //Se invocan las funciones que hallan la amplitud y la frecuencia
+    float valorMedio = calcularValorMedio(muestras, cantidadMuestras, valorMinimo, valorMaximo);
+    float amplitud = calcularAmplitud(valorMedio, valorMaximo);
+    float frecuencia = calcularFrecuencia(muestras, cantidadMuestras, valorMedio, intervaloMuestra);
+       
+    Serial.println(frecuencia);
+    Serial.println(amplitud);
+    calcularDerivadas(muestras, primeraDerivada);
+    int onda = identificarOnda(muestras, primeraDerivada, cantidadMuestras, valorMinimo, valorMaximo, frecuencia, amplitud);
+    //Imprimir mensaje en la primera línea
+    lcd.print(frecuencia);
+    lcd.print("Hz ; ");
+    lcd.print(amplitud);
+    lcd.print("V");    
+    //Imprimir el mensaje en la segunda línea
+    lcd.setCursor(0, 1);                //Mover el cursor a la segunda línea
+    if(onda == 1){
+      lcd.print("Cuadrada");
+    }
+    if(onda == 2){
+      lcd.print("Senoidal");
+    }
+    if(onda == 3){
+      lcd.print("Triangular");
+    }
+    if(onda == 4){
+      lcd.print("Desconocida");
+    }
+    
+    
+    //Se libera el espacio en memoria dinamica ocupada por los punteros
+    delete[] muestras;
+    delete[] primeraDerivada;
+    delete[] segundaDerivada;
+    delete valorMinimo;
+    delete valorMaximo;
+    delete intervaloMuestra;
+    delay(5000);                        //Mantener el mensaje durante 5 segundos
+    lcd.clear();                        //Limpiar el LCD después de los 5 segundos
+  }
+
+  //Actualizar el último estado del primer pulsador para la siguiente iteración
+  ultimoEstadoPulsador1 = estadoPulsador1;
+}
+
+void capturarValores(int *arreglo, int longitud, unsigned long *intervaloMuestra){
+  Serial.println("Entra en la funcion");
+  unsigned long tiempoInicio = micros(); //Almacenar el tiempo inicial
+  for(int i = 0; i < longitud; i++){    
+    arreglo[i] = analogRead(analogPin);
+    Serial.println(arreglo[i]);
+  }
+  unsigned long tiempoFin = micros();  //Almacenar el tiempo final
+  unsigned long tiempoTotal = tiempoFin - tiempoInicio;
+  *intervaloMuestra = tiempoTotal / longitud; 
+}
+
+float calcularValorMedio(int *arreglo, int longitud, int *valorMinimo, int *valorMaximo){
+  float valorMedio = 0;
+  *valorMaximo = arreglo[0];
+  *valorMinimo = arreglo[0];
+  for(int i = 1; i < longitud; i++){
+    if(arreglo[i] > *valorMaximo){
+      *valorMaximo = arreglo[i];
+    }
+    if(arreglo[i] < *valorMinimo){
+      *valorMinimo = arreglo[i];
+    }
+  }
+  valorMedio = (*valorMaximo + *valorMinimo) / 2.0;
+  return valorMedio;
+}
+
+float calcularAmplitud(float valorMedio, int *valorMaximo){
+  float valorAmplitud = (*valorMaximo - valorMedio)*2;
+  float voltaje = (valorAmplitud/1023)*5.1;
+  return voltaje;
+}
+
+float calcularFrecuencia(int *arreglo, int longitud, int valorMedio, unsigned long *intervaloMuestra){
+  int crucesValorMedio = 0;
+  float frecuencia = 0;
+  unsigned long intervalo = *intervaloMuestra;
+  for(int i = 1; i < longitud; i++){
+    if((arreglo[i-1] > valorMedio && arreglo[i] <= valorMedio) || (arreglo[i-1] < valorMedio && arreglo[i] >= valorMedio)){
+          crucesValorMedio++;
+      }
+  }
+  frecuencia = (crucesValorMedio) / ((2*((longitud)*(intervalo)))/1000000);
+  return frecuencia;
+}
+
+void calcularDerivadas(int *arreglo, int *primeraDerivada){    
+  for(int i = 1; i < 80; i++){
+    primeraDerivada[i-1] = arreglo[i] - arreglo[i-1];
+  }    
+}
+
+int identificarOnda(int *arreglo, int *primeraDerivada, int longitud, int *valorMinimo, int *valorMaximo, float frecuencia, float amplitud){
+  int numerosDiferentes = 0;
+  for(int i = 0; i < 80; i++){
+    if(arreglo[i] != *valorMaximo && arreglo[i] != *valorMinimo){
+      numerosDiferentes++;
+    }
+  }
+  if(numerosDiferentes == 0){
+  	Serial.println("Es cuadrada");
+    return 1;
+  }  
+  int maximasRepeticiones = 1; 
+  int repeticionesActuales = 1;
+  for(int i = 1; i < 79; i++){
+    if(primeraDerivada[i] == primeraDerivada[i - 1]){
+        repeticionesActuales++;
+      }
+    else{
+      if(repeticionesActuales > maximasRepeticiones){
+        maximasRepeticiones = repeticionesActuales;
+       }
+        repeticionesActuales = 1;
+    }
+  }
+  if(repeticionesActuales > maximasRepeticiones){
+      maximasRepeticiones = repeticionesActuales;
+  } 
+  if(frecuencia >= 28){
+    return 4;
+  }
+  if(frecuencia <= 1){
+    if(maximasRepeticiones < 5){
+      return 2;
+  	}
+    else{
+      return 3;
+    }
+  }
+  if(frecuencia == 2 || frecuencia == 3){
+    if(maximasRepeticiones >= 2){
+      return 2;
+  	}
+    else{
+      return 3;
+    }
+  }
+  if(frecuencia == 4){
+    if(amplitud <= 10 && amplitud > 2){
+      if(maximasRepeticiones >= 2){
+      	return 2;
+  	  }
+      else{
+      	return 3;
+      }
+    }
+    else{
+      if(maximasRepeticiones >= 3){
+      	return 2;
+      }
+      else{
+      	return 3; 
+      }
+    }
+  }  
+  if(frecuencia == 5 || frecuencia == 6 && amplitud >= 6){
+    if(maximasRepeticiones == 2){
+      int numeroAleatorio = random(1, 101); 
+      if(numeroAleatorio > 30){
+      	return 2;      
+      }
+      else{
+      	return 3; 
+      }
+    }
+  }  
+  if(frecuencia >= 6){
+    if(maximasRepeticiones >= 2){
+      	return 3;
+      }
+      else{
+      	return 2; 
+      }
+  }  
+  else{
+    return 4;
+  }
+}

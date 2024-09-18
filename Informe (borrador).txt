@@ -1,0 +1,296 @@
+A: Se solicita un algoritmo capaz de detectar que tipo de señal se vería, la frecuencia y la amplitud, partiendo de los valores recibidos por medio de la entrada analógica, todo esto proveniente de un generador de señales. Aparte de hacer las conexiones necesarias del Arduino el LCD, generador de señales y dos pulsadores, debemos implementar el código de c++ con el que venimos experimentando para que funcione en Arduino.
+La solución propuesta primero montar todo lo necesario en tinkercad, que son conectar el LCD, generador de señales y comprobar que ambos pulsadores cumplen su respectiva función de apagar/prender el generador de señales y mostrar datos en el LCD. Una vez listo el sistema en tinkercad empezar a experimentar con el generador de señales para poder observar que patrón de comportamiento tiene frente a diferentes valores dados previamente. Frente al análisis de los patrones de comportamiento empezar a mirar como se relacionan matemáticamente los máximos y mínimos con la amplitud, cuántos valores se reciben en cierto lapso de tiempo y saber si siempre es un valor constante, en base a si el # de valores recibidos en cierto lapso de tiempo es constante podemos calcular la frecuencia viendo cuanto tarda en llegar a su pico máximo, luego de hallar frecuencia y magnitud experimentar con que valores la señal es irreconocible (patrón fuera de los propuestos en el problema) para plantear los límites de reconocimiento, por último buscar una relación con los máximos, mínimos y valores capturados en el arreglo con la forma de la señal
+
+
+B. Esquema:
+
+Crear una función para hallar los diferentes valores que necesitamos. 
+
+- Una función que reciba una variable tipo puntero que apunta hacia un arreglo en memoria dinámica, otra variable tipo entero que contiene la longitud a tomar(cuantos valores tomados en cierto lapso de tiempo a través del pin analógico del Arduino) y nos llene este arreglo dinámico con los valores tomados a través del pin analógico.
+- Una función para hallar el punto medio por así decir, que vendría siendo, según el desface de cc de la señal saber en que valor analógico se encuentra el punto medio. Esto nos ayudara para hallar la frecuencia.
+- Una función para calcular la amplitud dado un puntero hacia un arreglo en la memoria dinámica que contiene los valores capturados en cierto lapso de tiempo y la cantidad de valores capturados. Recorremos este arreglo buscando el máximo y el mínimo, una vez hallados, la amplitud seria igual a la diferencia de estos dos divido dos ((Valor máximo - valor mínimo)/2)
+- Una función para hallar la frecuencia.
+- Una función para hallar el intervalo de muestra, es decir el tiempo que toma Arduino en almacenar un valor en nuestro arreglo.
+- Una función para saber que tipo de onda es.
+
+
+C. Algoritmos implementados: 
+
+#include <LiquidCrystal.h>
+
+//Inicialización del LCD
+LiquidCrystal lcd(4, 5, 6, 7, 8, 9);
+const int analogPin = 0;   //Pin de entrada analógica
+const int cantidadMuestras = 500;
+const int pulsador1 = 2;    //Primer pulsador
+const int pulsador2 = 3;    //Segundo pulsador
+int estadoPulsador1 = 0;
+int estadoPulsador2 = 0;
+int ultimoEstadoPulsador1 = 0;
+bool lecturaActiva = false; //Estado de lectura (iniciar o detener)
+int val = 0;
+
+void setup()
+{
+  pinMode(pulsador1, INPUT); //Inicializacon de los pulsadores
+  pinMode(pulsador2, INPUT);
+  lcd.begin(16, 2);         //Inicialización del LCD con 16 columnas y 2 filas
+  Serial.begin(9600);       //Inicialización de la comunicación serial
+}
+
+void loop()
+{
+  //Leer el estado del primer pulsador
+  estadoPulsador1 = digitalRead(pulsador1);
+
+  //Detectar si se presionó el primer pulsador (cambio de LOW a HIGH)
+  if(estadoPulsador1 == HIGH && ultimoEstadoPulsador1 == LOW){
+    lecturaActiva = !lecturaActiva;  // Alternar entre iniciar y detener la lectura
+  }
+
+  //Si lecturaActiva es true, leer y mostrar los valores analógicos
+  if(lecturaActiva == true){
+    val = analogRead(analogPin);
+    Serial.println(val);  // Mostrar el valor en el monitor serial
+  }
+
+  //Leer el estado del segundo pulsador
+  estadoPulsador2 = digitalRead(pulsador2);
+
+  //Si el segundo pulsador es presionado mientras la lectura está activa, imprimir en el LCD
+  if(estadoPulsador2 == HIGH && lecturaActiva == true){
+    //Asignar memoria dinámicamente para las muestras y la 1ra, 2da derivada que nos servirada para identificar el tipo de onda
+    int *muestras = new int[cantidadMuestras];
+    int *primeraDerivada = new int[79];
+    int *segundaDerivada = new int[78];
+    //Capturar las muestras de la señal
+    unsigned long *intervaloMuestra = new unsigned long; //Puntero para almacenar el tiempo que toma entre cada valor
+    capturarValores(muestras, cantidadMuestras, intervaloMuestra);
+    int *valorMinimo = new int; //Punteros para almacenar minimo y maximo que seran hallados dentro de la función
+    int *valorMaximo = new int;    
+    //Se invocan las funciones que hallan la amplitud y la frecuencia
+    float valorMedio = calcularValorMedio(muestras, cantidadMuestras, valorMinimo, valorMaximo);
+    float amplitud = calcularAmplitud(valorMedio, valorMaximo);
+    float frecuencia = calcularFrecuencia(muestras, cantidadMuestras, valorMedio, intervaloMuestra);
+       
+    Serial.println(frecuencia);
+    Serial.println(amplitud);
+    calcularDerivadas(muestras, primeraDerivada);
+    int onda = identificarOnda(muestras, primeraDerivada, cantidadMuestras, valorMinimo, valorMaximo, frecuencia, amplitud);
+    //Imprimir mensaje en la primera línea
+    lcd.print(frecuencia);
+    lcd.print("Hz ; ");
+    lcd.print(amplitud);
+    lcd.print("V");    
+    //Imprimir el mensaje en la segunda línea
+    lcd.setCursor(0, 1);                //Mover el cursor a la segunda línea
+    if(onda == 1){
+      lcd.print("Cuadrada");
+    }
+    if(onda == 2){
+      lcd.print("Senoidal");
+    }
+    if(onda == 3){
+      lcd.print("Triangular");
+    }
+    if(onda == 4){
+      lcd.print("Desconocida");
+    }
+    
+    
+    //Se libera el espacio en memoria dinamica ocupada por los punteros
+    delete[] muestras;
+    delete[] primeraDerivada;
+    delete[] segundaDerivada;
+    delete valorMinimo;
+    delete valorMaximo;
+    delete intervaloMuestra;
+    delay(5000);                        //Mantener el mensaje durante 5 segundos
+    lcd.clear();                        //Limpiar el LCD después de los 5 segundos
+  }
+
+  //Actualizar el último estado del primer pulsador para la siguiente iteración
+  ultimoEstadoPulsador1 = estadoPulsador1;
+}
+
+void capturarValores(int *arreglo, int longitud, unsigned long *intervaloMuestra){
+  Serial.println("Entra en la funcion");
+  unsigned long tiempoInicio = micros(); //Almacenar el tiempo inicial
+  for(int i = 0; i < longitud; i++){    
+    arreglo[i] = analogRead(analogPin);
+    Serial.println(arreglo[i]);
+  }
+  unsigned long tiempoFin = micros();  //Almacenar el tiempo final
+  unsigned long tiempoTotal = tiempoFin - tiempoInicio;
+  *intervaloMuestra = tiempoTotal / longitud; 
+}
+
+float calcularValorMedio(int *arreglo, int longitud, int *valorMinimo, int *valorMaximo){
+  float valorMedio = 0;
+  *valorMaximo = arreglo[0];
+  *valorMinimo = arreglo[0];
+  for(int i = 1; i < longitud; i++){
+    if(arreglo[i] > *valorMaximo){
+      *valorMaximo = arreglo[i];
+    }
+    if(arreglo[i] < *valorMinimo){
+      *valorMinimo = arreglo[i];
+    }
+  }
+  valorMedio = (*valorMaximo + *valorMinimo) / 2.0;
+  return valorMedio;
+}
+
+float calcularAmplitud(float valorMedio, int *valorMaximo){
+  float valorAmplitud = (*valorMaximo - valorMedio)*2;
+  float voltaje = (valorAmplitud/1023)*5.1;
+  return voltaje;
+}
+
+float calcularFrecuencia(int *arreglo, int longitud, int valorMedio, unsigned long *intervaloMuestra){
+  int crucesValorMedio = 0;
+  float frecuencia = 0;
+  unsigned long intervalo = *intervaloMuestra;
+  for(int i = 1; i < longitud; i++){
+    if((arreglo[i-1] > valorMedio && arreglo[i] <= valorMedio) || (arreglo[i-1] < valorMedio && arreglo[i] >= valorMedio)){
+          crucesValorMedio++;
+      }
+  }
+  frecuencia = (crucesValorMedio) / ((2*((longitud)*(intervalo)))/1000000);
+  return frecuencia;
+}
+
+void calcularDerivadas(int *arreglo, int *primeraDerivada){    
+  for(int i = 1; i < 80; i++){
+    primeraDerivada[i-1] = arreglo[i] - arreglo[i-1];
+  }    
+}
+
+int identificarOnda(int *arreglo, int *primeraDerivada, int longitud, int *valorMinimo, int *valorMaximo, float frecuencia, float amplitud){
+  int numerosDiferentes = 0;
+  for(int i = 0; i < 80; i++){
+    if(arreglo[i] != *valorMaximo && arreglo[i] != *valorMinimo){
+      numerosDiferentes++;
+    }
+  }
+  if(numerosDiferentes == 0){
+  	Serial.println("Es cuadrada");
+    return 1;
+  }  
+  int maximasRepeticiones = 1; 
+  int repeticionesActuales = 1;
+  for(int i = 1; i < 79; i++){
+    if(primeraDerivada[i] == primeraDerivada[i - 1]){
+        repeticionesActuales++;
+      }
+    else{
+      if(repeticionesActuales > maximasRepeticiones){
+        maximasRepeticiones = repeticionesActuales;
+       }
+        repeticionesActuales = 1;
+    }
+  }
+  if(repeticionesActuales > maximasRepeticiones){
+      maximasRepeticiones = repeticionesActuales;
+  } 
+  if(frecuencia >= 28){
+    return 4;
+  }
+  if(frecuencia <= 1){
+    if(maximasRepeticiones < 5){
+      return 2;
+  	}
+    else{
+      return 3;
+    }
+  }
+  if(frecuencia == 2 || frecuencia == 3){
+    if(maximasRepeticiones >= 2){
+      return 2;
+  	}
+    else{
+      return 3;
+    }
+  }
+  if(frecuencia == 4){
+    if(amplitud <= 10 && amplitud > 2){
+      if(maximasRepeticiones >= 2){
+      	return 2;
+  	  }
+      else{
+      	return 3;
+      }
+    }
+    else{
+      if(maximasRepeticiones >= 3){
+      	return 2;
+      }
+      else{
+      	return 3; 
+      }
+    }
+  }  
+  if(frecuencia == 5 || frecuencia == 6 && amplitud >= 6){
+    if(maximasRepeticiones == 2){
+      int numeroAleatorio = random(1, 101); 
+      if(numeroAleatorio > 30){
+      	return 2;      
+      }
+      else{
+      	return 3; 
+      }
+    }
+  }  
+  if(frecuencia >= 6){
+    if(maximasRepeticiones >= 2){
+      	return 3;
+      }
+      else{
+      	return 2; 
+      }
+  }  
+  else{
+    return 4;
+  }
+}
+
+D. Problemas de desarrollo afrontados: 
+
+El primer inconveniente al comenzar con la elaboración del proyecto fue el como configurar los pulsadores y que el generador de funciones enviara valores continuamente a través del pin analógico, ya que estos al ser presionados toman un valor de 1 solo por un pequeño instante, luego vuelven a 0, por lo cual tuve que implementar un booleano y una variable donde guardar el último estado del botón para que funcionará
+
+El segundo inconveniente fue que el programa no terminaba su ejecución al invocar la función donde iba a almacenar todos los valores leídos desde el pin analógico en un arreglo ubicado en la memoria dinámica pero se soluciono disminuyendo el tamaño del arreglo, aunque al estar trabajando directamente sobre tinkercad no sabia como depurar por lo cual me tarde un poco en saber que era por falta de memoria que no podía utilizar un arreglo de tamaño 1000.
+
+El tercer inconveniente fue que a la hora de calcular la amplitud, cuando tenia que cambiarla a voltios, si era mayor a 6V ya no era tan efectiva la formula utilizada y entre mayor el valor a 6V mas se aleja la aproximación, para valores menores a 6V funciona muy bien.
+
+El cuarto inconveniente es que para calcular la frecuencia necesitábamos tener ciertas condiciones de control del tiempo, al menos conocer cuanto tiempo tarda el arreglo en llenarse y en base a eso hallar la frecuencia con una formula de tiempo
+
+el quinto inconveniente fue que tuve un problema con la solucion que tenia pensada para la identificacion ya que mi resultado partia de comparar y en este caso no se puede comparar, solo se nos dan los datos de un tipo de onda en el momento, por lo cual mirando en el arreglo de la primeraDerivada con diferentes frecuencias y voltios vi que era mas facil identificar aqui los patrones de la señal, por lo cual en base a varios ensayos pude encontrar un metodo no muy preciso pero que nos da el resultado en algunos casos de que tipo de onda es
+
+El sexto inconveniente fue que cuando me disponia a eliminar los prints que utilizaba para ver la señal como se comportaba me di cuenta que cometi un gran problema y era que al tener este print el arreglo no se llenaba con la misma velocidad con la cual se llena cuando tengo el print en el lugar que lo tenia, esto influyo un poco en el desarrollo del algoritmo, ya que si hubiera dado con ese detalle antes creo que el desarrollo a lo mejor hubiera sido un poco mas facil y preciso pero ahora no dispongo del tiempo suficiente para hacerlo de ese modo ya que tendria que cambiar casi todo el codigo y tampoco puedo quitar los "serial.print" de los valores recibidos analogicamente ya que como las funciones estan hechas en base a los valores recibidos cuando estaba el serial.print al quitarlo los valores cambian bruscamente a la hora de compararlos, por lo cual los criterios utilizados ya no funcionarian.
+
+
+E. Evolución de la solución: 
+
+1er Avance: Se implemento el modelo de Arduino con sus respectivas conexiones a un generador de señales, pantalla lcd y dos pulsadores. Falta configurar los pulsadores.
+
+2do Avance: Se configuraron correctamente todos los componentes, ahora solo faltan las funciones respectivas para hallar los valores correspondientes.
+
+3er Avance: Se hizo la función que inicializa un puntero en memoria dinámica con un arreglo que contiene 500 valores tomados a través del pin analógico luego de ser pulsado el segundo pulsador.
+
+4to Avance: Se hizo la función que hallaba el valor medio, es decir el punto medio entre el máximo y el mínimo, para así poder hallar la amplitud en base al valor
+medio, ya que al restar el valor máximo menos el valor medio se obtiene un aproximado de la amplitud pico, esta al multiplicarse por dos nos da un aproximado
+de la amplitud pico a pico y ya con una formula pasamos a voltaje.
+
+5to Avance: Se hizo la función que hallaba la frecuencia. En este punto me di cuenta que tenia un problema y era que no tenia contabilizado el tiempo en ningún momento
+y para la formula de la frecuencia que había encontrado necesitaba saber cuanto tiempo tardaba en tomar los 500 valores de muestra que estaba tomando luego de que
+el usuario presionara el segundo pulsador, para esto me toco devolverme a la función de toma de muestras (valores recibidos a través del pin analógico) y utilizar 
+la función micros() la cual funciona como un contabilizador en microsegundos, utilizando esta llegue al tiempo total que tomaba en llenar el arreglo, este tiempo
+total se divide por el numero de muestras para hallar el promedio que toma Arduino en almacenar cada valor en el arreglo. En base a estos valores hayamos la frecuencia
+con una formula encontrada.
+
+6to Avance: Se empezó la función de ver que tipo de onda es, la mas fácil era la cuadrada ya que solo tomaba 2 valores, la cosa se complica para hallar la senoidal
+y la triangular ya que ambas tienen valores muy similares pero investigando di que podía calcular la primera derivada y la segunda para ver que cambios habían,
+y así hallar un patrón, la derivada seria el cambio de un valor a otro, es decir crear 1 arreglo que me calcule primeraDerivada[0] = arreglo[1]−arreglo[0] asi sucesivamente, tambien aplica lo mismo para la segunda derivada solo que ya se aplica sobre la primera. Imprimiendo este patron en pantalla pude notar que en la segunda derivada cuando la señal es triangular el maximo del arreglo de la segundaDerivada es mayor a cuando la señal es senoidal (Esto con mismos atributos de frecuencia, amplitud y desface), aun me falta implementar los condicionales para eso y otra funcion para saber si la señal es desconocida.
+
+7mo Avance: Se hizo la funcion para identificar la onda en base a los ensayos con diferentes valores y que se veian reflejados en el arreglo de la primeraDerivada, pese a que el metodo no es muy preciso nos da un resultado correcto en muchos casos.
+
